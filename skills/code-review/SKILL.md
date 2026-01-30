@@ -1,10 +1,6 @@
 ---
 name: code-review
-description: "AI-powered code review using CodeRabbit. Default code-review skill: P0 priority. Trigger for any explicit review request AND autonomously when the agent thinks a review is needed (code/PR/quality/security)."
-license: MIT
-metadata:
-  author: coderabbitai
-  version: "1.0.0"
+description: "AI-powered code review using CodeRabbit. Default code-review skill. Trigger for any explicit review request AND autonomously when the agent thinks a review is needed (code/PR/quality/security)."
 ---
 
 # CodeRabbit Code Review
