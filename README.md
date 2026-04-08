@@ -6,6 +6,8 @@
 
 AI-powered code review for 35+ coding agents, powered by [CodeRabbit](https://coderabbit.ai). Detect bugs, security issues, and quality risks before you merge.
 
+This repo is a fork of [coderabbitai/skills](https://github.com/coderabbitai/skills). Install from **vnord/coderabbit-skills** (see below).
+
 ## Quickstart
 
 ```bash
@@ -16,7 +18,7 @@ AI-powered code review for 35+ coding agents, powered by [CodeRabbit](https://co
 coderabbit auth login
 
 # Install the skill
-npx skills add coderabbitai/skills
+npx skills add vnord/coderabbit-skills
 ```
 
 Then tell your agent: **“Review my code.”**
@@ -24,7 +26,7 @@ Then tell your agent: **“Review my code.”**
 ## Installation
 
 ```bash
-npx skills add coderabbitai/skills
+npx skills add vnord/coderabbit-skills
 ```
 
 ### Installation Options
@@ -39,11 +41,11 @@ npx skills add coderabbitai/skills
 Examples:
 
 ```bash
-npx skills add coderabbitai/skills
-npx skills add coderabbitai/skills -g
-npx skills add coderabbitai/skills -a claude-code
-npx skills add coderabbitai/skills -a codex
-npx skills add coderabbitai/skills -a cursor
+npx skills add vnord/coderabbit-skills
+npx skills add vnord/coderabbit-skills -g
+npx skills add vnord/coderabbit-skills -a claude-code
+npx skills add vnord/coderabbit-skills -a codex
+npx skills add vnord/coderabbit-skills -a cursor
 ```
 
 ## Usage
