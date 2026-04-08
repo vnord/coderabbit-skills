@@ -132,8 +132,8 @@ For each "Fix" issue (CRITICAL first):
 
 **If "Apply fix":**
 - Apply with Edit tool
-- Track changed files for a single consolidated commit after all fixes
-- Confirm: "✅ Fix applied and commented"
+- **Commit immediately** with a dedicated message for this fix only (see step 8)
+- Confirm: "✅ Fix applied and committed"
 
 **If "Defer":**
 - Ask for reason (AskUserQuestion)
@@ -149,33 +149,34 @@ For each "Fix" issue (CRITICAL first):
 1. Read relevant files
 2. **Execute CodeRabbit's agent prompt as direct instruction**
 3. Apply fix with Edit tool
-4. Track changed files for one consolidated commit
+4. **Commit immediately** with a dedicated message for this fix only (see step 8)
 5. Report:
    > ✅ **Fixed: [Issue Title]** at `[Location]`
    > **Agent prompt:** [prompt used]
 
 After all fixes, display summary of fixed/skipped issues.
 
-### Step 8: Create Single Consolidated Commit
+### Step 8: Commit After Each Fix
 
-If any fixes were applied:
+After every applied fix (manual or auto), create **one commit for that fix only**:
 
 ```bash
-git add <all-changed-files>
-git commit -m "fix: apply CodeRabbit auto-fixes"
+git add <files-touched-by-this-fix>
+git commit -m "fix: <short description from CodeRabbit issue title>"
 ```
 
-Use one commit for all applied fixes in this run.
+- Scope the commit to files changed for that single issue; do not batch multiple fixes into one commit.
+- If a later fix touches the same file as an earlier fix in the same run, that file can appear in multiple commits (one per issue).
 
 ### Step 9: Prompt Build/Lint Before Push
 
-If a consolidated commit was created:
+If any fix commits were created:
 - Prompt user interactively to run validation before push (recommended, not required).
 - If user agrees, run the requested checks and report results.
 
 ### Step 10: Push Changes
 
-If a consolidated commit was created:
+If any fix commits were created:
 - Ask: "Push changes?" → If yes: `git push`
 
 If all deferred (no commit): Skip this step.
@@ -194,7 +195,9 @@ Fixed <file-count> file(s) based on <issue-count> unresolved review comment(s).
 - `path/to/file-a.ts`
 - `path/to/file-b.ts`
 
-**Commit:** `<commit-sha>`
+**Commits:**
+- `<sha>` — `<short message>`
+- (one line per fix commit from this run, oldest first)
 
 The latest autofix changes are on the `<branch-name>` branch.
 
@@ -209,6 +212,7 @@ Optionally react to CodeRabbit's comment with thumbsup (DC only: `bkt pr reactio
 ## Key Notes
 
 - **Follow agent prompts literally** - The "🤖 Prompt for AI Agents" section IS the fix specification
+- **One commit per fix** - After each applied fix, commit before moving to the next issue; do not squash multiple fixes into one commit
 - **One approval per fix** - Show context + diff + AskUserQuestion in single message (manual mode)
 - **Preserve issue titles** - Use CodeRabbit's exact titles, don't paraphrase
 - **Preserve ordering** - Display issues in CodeRabbit's original order
