@@ -1,6 +1,6 @@
 ---
 name: autofix
-description: Auto-fix CodeRabbit review comments - get CodeRabbit review comments from GitHub and fix them interactively or in batch
+description: Auto-fix CodeRabbit review comments - get CodeRabbit review comments from Bitbucket and fix them interactively or in batch
 version: 0.1.0
 triggers:
   - coderabbit.?autofix
@@ -25,13 +25,13 @@ Fetch CodeRabbit review comments for your current branch's PR and fix them inter
 ## Prerequisites
 
 ### Required Tools
-- `gh` (GitHub CLI) - [Installation guide](./github.md)
+- `bkt` (Bitbucket CLI) - [Installation and platform notes](./bitbucket.md)
 - `git`
 
-Verify: `gh auth status`
+Verify: `bkt auth status` and `bkt context list` (must have an active context)
 
 ### Required State
-- Git repo on GitHub
+- Git repo on Bitbucket (Cloud or Data Center)
 - Current branch has open PR
 - PR reviewed by CodeRabbit bot (`coderabbitai`, `coderabbit[bot]`, `coderabbitai[bot]`)
 
@@ -61,26 +61,29 @@ Check: `git status` + check for unpushed commits
 ### Step 2: Find Open PR
 
 ```bash
-gh pr list --head $(git branch --show-current) --state open --json number,title
+bkt pr list --state OPEN --json \
+  --jq "[.[] | select(.source.branch.name == \"$(git branch --show-current)\")] | .[0] | {id, title}"
 ```
 
-**If no PR:** Ask "Create PR?" → If yes: create PR (see [github.md § 5](./github.md#5-create-pr-if-needed)), inform "Run skill again in ~5 min", EXIT
+**If no PR:** Ask "Create PR?" → If yes: create PR (see [bitbucket.md § 5](./bitbucket.md#5-create-pr-if-needed)), inform "Run skill again in ~5 min", EXIT
 
-### Step 3: Fetch Unresolved CodeRabbit Threads
+### Step 3: Fetch Unresolved CodeRabbit Comments
 
-Fetch PR review threads (see [github.md § 2](./github.md#2-fetch-unresolved-threads)):
-- Threads: `gh api graphql ... pullRequest.reviewThreads ...` (see [github.md § 2](./github.md#2-fetch-unresolved-threads))
+Fetch PR comments (see [bitbucket.md § 2](./bitbucket.md#2-fetch-unresolved-comments)):
+
+- **Cloud:** `bkt pr comments <id> --state unresolved --json`
+- **DC:** `bkt pr comments <id> --json` (filter client-side; DC does not expose resolution status)
 
 Filter to:
-- unresolved threads only (`isResolved == false`)
-- threads started by CodeRabbit bot (`coderabbitai`, `coderabbit[bot]`, `coderabbitai[bot]`)
+- unresolved comments only (Cloud: handled by `--state unresolved`; DC: filter client-side)
+- comments authored by CodeRabbit bot (`coderabbitai`, `coderabbit[bot]`, `coderabbitai[bot]`)
 
 **If review in progress:** Check for "Come back again in a few minutes" message → Inform "⏳ Review in progress, try again in a few minutes", EXIT
 
-**If no unresolved CodeRabbit threads:** Inform "No unresolved CodeRabbit review threads found", EXIT
+**If no unresolved CodeRabbit comments:** Inform "No unresolved CodeRabbit review comments found", EXIT
 
-**For each selected thread:**
-- Extract issue metadata from root comment
+**For each selected comment:**
+- Extract issue metadata from comment body
 
 ### Step 4: Parse and Display Issues
 
@@ -190,7 +193,7 @@ If all deferred (no commit): Skip this step.
 **REQUIRED after all issues reviewed:**
 
 ```bash
-gh pr comment <pr-number> --body "$(cat <<'EOF'
+bkt pr comment <pr-id> --text "$(cat <<'EOF'
 ## Fixes Applied Successfully
 
 Fixed <file-count> file(s) based on <issue-count> unresolved review comment(s).
@@ -207,9 +210,9 @@ EOF
 )"
 ```
 
-See [github.md § 3](./github.md#3-post-summary-comment) for details.
+See [bitbucket.md § 3](./bitbucket.md#3-post-summary-comment) for details.
 
-Optionally react to CodeRabbit's main comment with 👍.
+Optionally react to CodeRabbit's comment with thumbsup (DC only: `bkt pr reaction add <pr-id> <comment-id> --emoji thumbsup`).
 
 ## Key Notes
 
