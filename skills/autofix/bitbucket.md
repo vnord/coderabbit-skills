@@ -17,37 +17,73 @@ Ensure an active context is configured (`bkt context list`) with the correct hos
 - **Bitbucket Data Center:** The DC API does not expose comment resolution status. Fetch all comments and filter client-side.
 - **Reactions:** `bkt pr reaction` is DC only; not available on Cloud.
 
+## Response Envelopes
+
+`bkt` wraps JSON list responses, so `--jq ".[]"` will fail. Always unwrap:
+
+- `bkt pr list --json` → `{pull_requests: [...], repo, workspace}` — use `.pull_requests[]`
+- `bkt pr comments --json` → `{comments: [...]}` — use `.comments[]`
+
+Prefer piping to `jq` over `--jq` for multi-line filters.
+
 ## Core Operations
 
 ### 1. Find Pull Request
 
-`bkt pr list` does not support filtering by source branch directly. List open PRs as JSON and filter with `--jq`:
-
 ```bash
 bkt pr list --state OPEN --json \
-  --jq "[.[] | select(.source.branch.name == \"$(git branch --show-current)\")] | .[0] | {id, title}"
+  | jq --arg b "$(git branch --show-current)" \
+    '.pull_requests[] | select(.source.branch.name == $b) | {id, title}'
 ```
 
 ### 2. Fetch Unresolved Comments
 
-**Bitbucket Cloud:**
+**CodeRabbit author identity differs by platform:**
+
+- **Cloud:** `user.display_name == "Code Rabbit"` and `user.nickname == "code.rabbit"` (no `coderabbitai` handle).
+- **Data Center:** `user.name` / `user.slug` matches `coderabbitai`, `coderabbit[bot]`, or `coderabbitai[bot]`.
+
+**Meta comments to exclude** (not actionable review findings):
+
+- Walkthrough / tips / "Reviews paused" auto-generated summaries
+- "Actionable comments posted: N" status stubs
+- Plain bot replies to user comments (e.g. "acknowledged", thumbs-up)
+- Outside-diff comments that CodeRabbit nests inside `> ` quote blocks — these are summaries of issues already posted elsewhere
+- Comments with `✅ Addressed in commits <sha>..<sha>` — CodeRabbit marks these itself after a push
+
+**Heuristic filter** that isolates actionable issues: content starts with `_` (severity header like `_⚠️ Potential issue_ | _🟠 Major_`), contains a `🤖 Prompt for AI Agents` block, and does not contain `✅ Addressed in commits`.
+
+**Bitbucket Cloud** (resolution filter server-side):
 
 ```bash
-bkt pr comments <id> --state unresolved --json
+bkt pr comments <id> --state unresolved --json | jq '
+  [.comments[]
+    | select(
+        .user.display_name == "Code Rabbit"
+        or .user.nickname == "code.rabbit"
+        or ((.user.name // .user.slug // "") | test("coderabbit"; "i"))
+      )
+    | select(.content.raw | test("Prompt for AI Agents"))
+    | select(.content.raw | test("✅ Addressed in commits") | not)
+    | select(.content.raw | startswith("_"))
+    | {id, content: .content.raw}]
+'
 ```
 
-**Bitbucket Data Center:**
-
-DC does not expose resolution status. Fetch all comments and filter client-side:
+**Bitbucket Data Center** (no server-side resolution status):
 
 ```bash
-bkt pr comments <id> --json
+bkt pr comments <id> --json | jq '
+  [.comments[]
+    | select(((.user.name // .user.slug // .user.display_name // "") | test("coderabbit"; "i")))
+    | select(.content.raw | test("Prompt for AI Agents"))
+    | select(.content.raw | test("✅ Addressed in commits") | not)
+    | select(.content.raw | startswith("_"))
+    | {id, content: .content.raw}]
+'
 ```
 
-Filter criteria:
-- Comment author is one of: `coderabbitai`, `coderabbit[bot]`, `coderabbitai[bot]`
-
-On Cloud, the `--state unresolved` flag handles resolution filtering server-side. On DC, exclude comments that have been resolved by other means (e.g. task completion).
+On DC, additionally exclude comments resolved via task completion if the host exposes task state.
 
 ### 3. Post Summary Comment
 

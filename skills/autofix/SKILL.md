@@ -53,30 +53,60 @@ Check: `git status` + check for unpushed commits
 
 ### Step 2: Find Open PR
 
+`bkt pr list --json` returns `{pull_requests: [...], repo, workspace}` — not a bare array — so `--jq` with `.[]` will fail. Pipe to `jq` and index into `.pull_requests[]`:
+
 ```bash
 bkt pr list --state OPEN --json \
-  --jq "[.[] | select(.source.branch.name == \"$(git branch --show-current)\")] | .[0] | {id, title}"
+  | jq --arg b "$(git branch --show-current)" \
+    '.pull_requests[] | select(.source.branch.name == $b) | {id, title}'
 ```
 
 **If no PR:** Ask "Create PR?" → If yes: create PR (see [bitbucket.md § 5](./bitbucket.md#5-create-pr-if-needed)), inform "Run skill again in ~5 min", EXIT
 
 ### Step 3: Fetch Unresolved CodeRabbit Comments
 
-Fetch PR comments (see [bitbucket.md § 2](./bitbucket.md#2-fetch-unresolved-comments)):
+`bkt pr comments --json` also wraps results: `{comments: [...]}`. Use the single canonical pipeline below to fetch + filter in one call. It:
 
-- **Cloud:** `bkt pr comments <id> --state unresolved --json`
-- **DC:** `bkt pr comments <id> --json` (filter client-side; DC does not expose resolution status)
+- matches CodeRabbit on both platforms (Cloud identity differs from DC)
+- keeps only actionable review comments (those containing a `🤖 Prompt for AI Agents` block)
+- drops comments already marked `✅ Addressed in commits …`
+- drops walkthrough, tips, "Reviews paused", "Actionable comments posted: N" meta, plain bot replies, and outside-diff nested-quote summaries
 
-Filter to:
-- unresolved comments only (Cloud: handled by `--state unresolved`; DC: filter client-side)
-- comments authored by CodeRabbit bot (`coderabbitai`, `coderabbit[bot]`, `coderabbitai[bot]`)
+**Bitbucket Cloud** (server-side resolution filter available):
 
-**If review in progress:** Check for "Come back again in a few minutes" message → Inform "⏳ Review in progress, try again in a few minutes", EXIT
+```bash
+bkt pr comments <id> --state unresolved --json | jq '
+  [.comments[]
+    | select(
+        .user.display_name == "Code Rabbit"
+        or .user.nickname == "code.rabbit"
+        or ((.user.name // .user.slug // "") | test("coderabbit"; "i"))
+      )
+    | select(.content.raw | test("Prompt for AI Agents"))
+    | select(.content.raw | test("✅ Addressed in commits") | not)
+    | select(.content.raw | startswith("_"))
+    | {id, content: .content.raw}]
+'
+```
 
-**If no unresolved CodeRabbit comments:** Inform "No unresolved CodeRabbit review comments found", EXIT
+**Bitbucket Data Center** (no `--state unresolved`; resolution status not exposed):
 
-**For each selected comment:**
-- Extract issue metadata from comment body
+```bash
+bkt pr comments <id> --json | jq '
+  [.comments[]
+    | select(((.user.name // .user.slug // .user.display_name // "") | test("coderabbit"; "i")))
+    | select(.content.raw | test("Prompt for AI Agents"))
+    | select(.content.raw | test("✅ Addressed in commits") | not)
+    | select(.content.raw | startswith("_"))
+    | {id, content: .content.raw}]
+'
+```
+
+See [bitbucket.md § 2](./bitbucket.md#2-fetch-unresolved-comments) for details and rationale.
+
+**If review in progress:** If the raw comments contain "Come back again in a few minutes" → Inform "⏳ Review in progress, try again in a few minutes", EXIT
+
+**If the filtered array is empty:** Inform "No unresolved CodeRabbit review comments found", EXIT
 
 ### Step 4: Parse and Display Issues
 
